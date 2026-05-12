@@ -13,7 +13,7 @@ export default function WonderPhase({ part, onNext }) {
     color: 'var(--coral)',
   } : {
     icon: '🤯',
-    title: 'Here's a big question…',
+    title: "Here\u2019s a big question\u2026",
     question: 'If a bakery made 47 muffins in the morning and 36 in the afternoon — can you add those big numbers in your head? What happens when the ones digits add up to MORE than 9?',
     facts: [
       { emoji: '🏗️', text: 'Place value is the superpower behind adding big numbers!' },
