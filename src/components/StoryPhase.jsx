@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { STORY_PART1, STORY_PART2 } from '../data/storyContent'
+import { playSound } from '../utils/audio'
 
-export default function StoryPhase({ part, onNext, onBack }) {
+export default function StoryPhase({ part, onNext, onBack, audioEnabled }) {
   const slides = part === 1 ? STORY_PART1 : STORY_PART2
   const [current, setCurrent] = useState(0)
-
   const slide = slides[current]
   const isLast = current === slides.length - 1
+  const progress = ((current + 1) / slides.length) * 100
 
   function highlightText(text, word) {
     if (!word) return text
@@ -18,61 +19,68 @@ export default function StoryPhase({ part, onNext, onBack }) {
     )
   }
 
+  function goNext() {
+    playSound('cardFlip', audioEnabled)
+    if (isLast) onNext()
+    else setCurrent(c => c + 1)
+  }
+
+  function goBack() {
+    if (current === 0) onBack()
+    else setCurrent(c => c - 1)
+  }
+
   return (
-    <div>
-      <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-        <span style={{
-          background: part === 1 ? 'rgba(255,107,107,0.2)' : 'rgba(78,205,196,0.2)',
-          color: part === 1 ? 'var(--coral)' : 'var(--sky)',
-          padding: '4px 16px', borderRadius: '50px', fontSize: '0.82rem', fontWeight: 700
-        }}>
-          📖 Story Time — Part {part}
-        </span>
+    <div className="story-phase" style={{ padding: '24px' }}>
+      {/* Progress bar */}
+      <div className="story-progress">
+        <div className="story-progress-bar">
+          <div className="story-progress-fill" style={{ width: `${progress}%` }} />
+        </div>
+        <span className="story-progress-label">{current + 1}/{slides.length}</span>
       </div>
 
-      <div className="story-slides">
-        <div className="story-slide" key={current}>
-          <div className="story-slide-img">{slide.emoji}</div>
-          <h3 className="story-slide h3" style={{
-            fontFamily: 'var(--font-heading)', fontSize: '1.8rem', marginBottom: '12px'
-          }}>{slide.title}</h3>
-          <p style={{ fontSize: '1.05rem', lineHeight: 1.8, color: 'rgba(255,255,255,0.9)' }}>
+      {/* Story card with image */}
+      <div className="story-card-enhanced" key={current}>
+        {slide.image && (
+          <div className="story-image-section">
+            <img src={slide.image} alt={slide.title} className="story-image" />
+            <div className="story-image-overlay" />
+          </div>
+        )}
+        {!slide.image && (
+          <div className="story-image-section" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: '6rem' }}>{slide.emoji}</span>
+          </div>
+        )}
+        <div className="story-text-section">
+          <h3 className="story-title-enhanced">{slide.title}</h3>
+          <p className="story-text-enhanced">
             {highlightText(slide.text, slide.highlight)}
           </p>
         </div>
       </div>
 
-      <div className="slide-dots">
+      {/* Navigation dots */}
+      <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
         {slides.map((_, i) => (
-          <div
-            key={i}
-            className={`slide-dot ${i === current ? 'active' : ''}`}
-            onClick={() => setCurrent(i)}
-            role="button"
+          <div key={i} onClick={() => setCurrent(i)} role="button" tabIndex={0}
+            style={{
+              width: i === current ? '24px' : '10px', height: '10px', borderRadius: '5px',
+              background: i < current ? 'var(--green)' : i === current ? 'var(--gold)' : 'rgba(255,255,255,0.2)',
+              boxShadow: i === current ? '0 0 8px rgba(255,193,7,0.4)' : 'none',
+              cursor: 'pointer', transition: 'all 0.3s ease',
+            }}
             aria-label={`Go to slide ${i + 1}`}
           />
         ))}
       </div>
 
-      <div className="story-nav">
-        <button
-          className="btn btn-ghost"
-          onClick={() => current === 0 ? onBack() : setCurrent(c => c - 1)}
-          id="story-back-btn"
-        >
-          ← Back
-        </button>
-
-        <span style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.5)' }}>
-          {current + 1} / {slides.length}
-        </span>
-
-        <button
-          className={`btn ${isLast ? 'btn-primary' : 'btn-secondary'}`}
-          onClick={() => isLast ? onNext() : setCurrent(c => c + 1)}
-          id="story-next-btn"
-        >
-          {isLast ? 'Try It Yourself! →' : 'Next →'}
+      {/* Nav buttons */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+        <button className="btn btn-outline btn-sm" onClick={goBack}>← Back</button>
+        <button className={`btn ${isLast ? 'btn-primary' : 'btn-outline'}`} onClick={goNext} id="story-next-btn">
+          {isLast ? 'Try It Yourself! 🧪' : 'Next →'}
         </button>
       </div>
     </div>

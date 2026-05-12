@@ -1,149 +1,145 @@
-import { useState, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import LandingScreen from './components/LandingScreen'
 import WonderPhase from './components/WonderPhase'
 import StoryPhase from './components/StoryPhase'
 import SimulatePhase from './components/SimulatePhase'
 import PlayPhase from './components/PlayPhase'
 import ReflectPhase from './components/ReflectPhase'
-import Header from './components/Header'
+import FloatingNumbers from './components/FloatingNumbers'
+import { playSound } from './utils/audio'
 
-const PHASES = ['wonder', 'story', 'simulate', 'play', 'reflect']
-const PHASE_LABELS = { wonder: '🌟', story: '📖', simulate: '🧪', play: '🎮', reflect: '🏆' }
+const PHASES = [
+  { id: 'wonder', label: 'Wonder', icon: '🔍', num: '01' },
+  { id: 'story', label: 'Story', icon: '📖', num: '02' },
+  { id: 'simulate', label: 'Simulate', icon: '🧪', num: '03' },
+  { id: 'play', label: 'Play', icon: '🎮', num: '04' },
+  { id: 'reflect', label: 'Reflect', icon: '📓', num: '05' },
+]
 
-function Bubbles() {
-  const bubbles = Array.from({ length: 12 }, (_, i) => ({
-    id: i,
-    size: Math.random() * 60 + 20,
-    left: Math.random() * 100,
-    duration: Math.random() * 15 + 10,
-    delay: Math.random() * 10,
-  }))
-  return (
-    <div className="bubbles">
-      {bubbles.map(b => (
-        <div key={b.id} className="bubble" style={{
-          width: b.size, height: b.size,
-          left: `${b.left}%`,
-          animationDuration: `${b.duration}s`,
-          animationDelay: `${b.delay}s`,
-        }} />
-      ))}
-    </div>
-  )
+const STORAGE_KEY = 'intellia_addition_v2'
+
+function saveProgress(state) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, timestamp: Date.now() }))
+  } catch {}
+}
+
+function loadProgress() {
+  try {
+    const d = localStorage.getItem(STORAGE_KEY)
+    return d ? JSON.parse(d) : null
+  } catch { return null }
 }
 
 export default function App() {
-  const [screen, setScreen] = useState('landing') // 'landing' | 'journey'
-  const [part, setPart] = useState(null) // 1 | 2
-  const [phase, setPhase] = useState(0) // 0-4 index into PHASES
-  const [totalStars, setTotalStars] = useState(() => {
-    try { return parseInt(localStorage.getItem('addition_total_stars') || '0') } catch { return 0 }
-  })
-  const [partProgress, setPartProgress] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('addition_progress') || '{}') } catch { return {} }
-  })
-  const [soundOn, setSoundOn] = useState(true)
+  const [phase, setPhase] = useState('landing')
+  const [part, setPart] = useState(null)
+  const [audioEnabled, setAudioEnabled] = useState(true)
+  const [playStats, setPlayStats] = useState(null)
+  const saved = loadProgress()
 
-  useEffect(() => {
-    try { localStorage.setItem('addition_total_stars', String(totalStars)) } catch {}
-  }, [totalStars])
-
-  useEffect(() => {
-    try { localStorage.setItem('addition_progress', JSON.stringify(partProgress)) } catch {}
-  }, [partProgress])
-
-  function startPart(partNum) {
-    setPart(partNum)
-    setPhase(0)
-    setScreen('journey')
-  }
-
-  function nextPhase() {
-    if (phase < PHASES.length - 1) setPhase(p => p + 1)
-  }
-
-  function prevPhase() {
-    if (phase > 0) setPhase(p => p - 1)
-  }
-
-  function goHome() {
-    setScreen('landing')
+  const goHome = useCallback(() => {
+    setPhase('landing')
     setPart(null)
-    setPhase(0)
+    setPlayStats(null)
+  }, [])
+
+  function startPart(p) {
+    setPart(p)
+    setPhase('wonder')
+    playSound('click', audioEnabled)
   }
 
-  function addStars(n) {
-    setTotalStars(s => s + n)
+  const currentPhaseIndex = PHASES.findIndex(p => p.id === phase)
+
+  function handlePlayComplete(stats) {
+    setPlayStats(stats)
+    saveProgress({ part, stats, phase: 'reflect' })
+    setPhase('reflect')
   }
 
-  function savePartResult(partNum, score, stars) {
-    setPartProgress(prev => ({
-      ...prev,
-      [partNum]: { score, stars, date: Date.now() }
-    }))
-  }
-
-  const currentPhase = PHASES[phase]
+  const isJourney = phase !== 'landing'
 
   return (
     <>
-      <div className="stars-bg" />
-      <Bubbles />
-      <Header
-        screen={screen}
-        part={part}
-        phase={phase}
-        phases={PHASES}
-        phaseLabels={PHASE_LABELS}
-        totalStars={totalStars}
-        soundOn={soundOn}
-        setSoundOn={setSoundOn}
-        goHome={goHome}
-      />
+      <FloatingNumbers />
+      <div className="app-container" style={{ position: 'relative', zIndex: 1, width: '100%', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowY: 'auto' }}>
 
-      {screen === 'landing' && (
-        <LandingScreen
-          onSelectPart={startPart}
-          partProgress={partProgress}
-          totalStars={totalStars}
-        />
-      )}
+        {/* Audio toggle */}
+        <button onClick={() => setAudioEnabled(a => !a)} className="audio-toggle-btn" aria-label="Toggle audio">
+          {audioEnabled ? '🔊' : '🔇'}
+        </button>
 
-      {screen === 'journey' && (
-        <div className="content-area">
-          <div className="content-card">
-            {currentPhase === 'wonder' && (
-              <WonderPhase part={part} onNext={nextPhase} soundOn={soundOn} />
-            )}
-            {currentPhase === 'story' && (
-              <StoryPhase part={part} onNext={nextPhase} onBack={prevPhase} soundOn={soundOn} />
-            )}
-            {currentPhase === 'simulate' && (
-              <SimulatePhase part={part} onNext={nextPhase} onBack={prevPhase} soundOn={soundOn} />
-            )}
-            {currentPhase === 'play' && (
-              <PlayPhase
-                part={part}
-                onNext={nextPhase}
-                onBack={prevPhase}
-                addStars={addStars}
-                savePartResult={savePartResult}
-                soundOn={soundOn}
-              />
-            )}
-            {currentPhase === 'reflect' && (
-              <ReflectPhase
-                part={part}
-                partProgress={partProgress}
-                totalStars={totalStars}
-                onGoHome={goHome}
-                onNextPart={() => { setPart(2); setPhase(0) }}
-                soundOn={soundOn}
-              />
-            )}
+        {/* Journey bar */}
+        {isJourney && (
+          <div className="journey-bar">
+            {PHASES.map((p, i) => (
+              <div key={p.id} className={`journey-step ${p.id === phase ? 'active' : i < currentPhaseIndex ? 'completed' : ''}`}>
+                <div className="journey-step-dot">
+                  {i < currentPhaseIndex ? '✓' : p.num}
+                </div>
+                <span className="journey-step-label">{p.icon} {p.label}</span>
+                {i < PHASES.length - 1 && (
+                  <div className={`journey-connector ${i < currentPhaseIndex ? 'filled' : ''}`} />
+                )}
+              </div>
+            ))}
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Home button */}
+        {isJourney && (
+          <button className="home-btn" onClick={goHome} aria-label="Go home">🏠 Home</button>
+        )}
+
+        {/* Phases */}
+        {phase === 'landing' && (
+          <LandingScreen onSelectPart={startPart} saved={saved} audioEnabled={audioEnabled} />
+        )}
+
+        {phase === 'wonder' && (
+          <div className="content-area">
+            <div className="content-card" style={{ marginTop: '60px' }}>
+              <WonderPhase part={part} onNext={() => { setPhase('story'); playSound('click', audioEnabled) }} audioEnabled={audioEnabled} />
+            </div>
+          </div>
+        )}
+
+        {phase === 'story' && (
+          <div className="content-area">
+            <div className="content-card" style={{ marginTop: '60px', padding: 0, overflow: 'hidden' }}>
+              <StoryPhase part={part} onNext={() => { setPhase('simulate'); playSound('click', audioEnabled) }} onBack={() => setPhase('wonder')} audioEnabled={audioEnabled} />
+            </div>
+          </div>
+        )}
+
+        {phase === 'simulate' && (
+          <div className="content-area">
+            <div className="content-card" style={{ marginTop: '60px' }}>
+              <SimulatePhase part={part} onNext={() => { setPhase('play'); playSound('click', audioEnabled) }} onBack={() => setPhase('story')} audioEnabled={audioEnabled} />
+            </div>
+          </div>
+        )}
+
+        {phase === 'play' && (
+          <div className="content-area" style={{ marginTop: '60px' }}>
+            <PlayPhase part={part} onComplete={handlePlayComplete} audioEnabled={audioEnabled} />
+          </div>
+        )}
+
+        {phase === 'reflect' && (
+          <div className="content-area" style={{ marginTop: '60px' }}>
+            <ReflectPhase
+              part={part}
+              stats={playStats}
+              onRestart={() => { setPhase('wonder') }}
+              onGoHome={goHome}
+              onNextPart={() => { setPart(2); setPhase('wonder') }}
+              audioEnabled={audioEnabled}
+            />
+          </div>
+        )}
+      </div>
     </>
   )
 }

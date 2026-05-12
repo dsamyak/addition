@@ -1,65 +1,69 @@
-export default function LandingScreen({ onSelectPart, partProgress, totalStars }) {
-  const p1 = partProgress[1]
-  const p2 = partProgress[2]
+export default function LandingScreen({ onSelectPart, saved }) {
+  const JOURNEY = [
+    { icon: '🔍', label: 'Wonder', desc: 'Get curious' },
+    { icon: '📖', label: 'Story', desc: 'Learn why' },
+    { icon: '🧪', label: 'Simulate', desc: 'Try it' },
+    { icon: '🎮', label: 'Play', desc: '10 × 5 worlds' },
+    { icon: '📓', label: 'Reflect', desc: 'Review' },
+  ]
 
   return (
-    <div className="content-area">
-      <div className="landing-hero" style={{ width: '100%', maxWidth: '900px' }}>
-        <div style={{ fontSize: '5rem', marginBottom: '16px', animation: 'bounce 2s ease infinite' }}>➕</div>
-        <h1 className="landing-title">Let's Add!</h1>
-        <p className="landing-subtitle">Singapore Primary 1 Mathematics · Addition Within 20 &amp; 100</p>
+    <div className="intro-screen">
+      <div className="intro-badge">✨ Singapore Primary 1 Mathematics</div>
+      <h1 className="intro-title">
+        Let&apos;s{' '}<span style={{ color: 'var(--gold)' }}>Add!</span>
+      </h1>
+      <p className="intro-desc">
+        Master addition within 20 and 100 through stories, simulations, and fun games!
+      </p>
 
-        {totalStars > 0 && (
-          <div style={{
-            display: 'inline-flex', alignItems: 'center', gap: '8px',
-            background: 'rgba(255,230,109,0.15)', border: '1px solid rgba(255,230,109,0.3)',
-            borderRadius: '50px', padding: '8px 20px', marginBottom: '32px',
-            fontSize: '0.95rem', fontWeight: 700
-          }}>
-            ⭐ You have {totalStars} stars! Keep going!
-          </div>
-        )}
-
-        <div className="part-cards">
-          <div className="part-card part1" onClick={() => onSelectPart(1)} role="button" tabIndex={0}
-            onKeyDown={e => e.key === 'Enter' && onSelectPart(1)} aria-label="Start Part 1: Addition Within 20">
-            <span className="part-emoji">🔢</span>
-            <h2 style={{ color: '#ff6b6b' }}>Addition Within 20</h2>
-            <p>Learn to add numbers up to 20 using ten-frames, number lines &amp; counting strategies.</p>
-            <span className="part-badge">Part 1 · 50 Questions</span>
-            {p1 && (
-              <div style={{ marginTop: '12px', fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)' }}>
-                ✅ Last score: {p1.score}% · ⭐ {p1.stars} stars
-              </div>
-            )}
-          </div>
-
-          <div className="part-card part2" onClick={() => onSelectPart(2)} role="button" tabIndex={0}
-            onKeyDown={e => e.key === 'Enter' && onSelectPart(2)} aria-label="Start Part 2: Addition Within 100">
-            <span className="part-emoji">💯</span>
-            <h2 style={{ color: '#4ecdc4' }}>Addition Within 100</h2>
-            <p>Master adding 2-digit numbers with and without regrouping using place value blocks.</p>
-            <span className="part-badge">Part 2 · 50 Questions</span>
-            {p2 && (
-              <div style={{ marginTop: '12px', fontSize: '0.82rem', color: 'rgba(255,255,255,0.5)' }}>
-                ✅ Last score: {p2.score}% · ⭐ {p2.stars} stars
-              </div>
-            )}
-          </div>
+      {/* Part Selection Cards */}
+      <div className="part-cards" style={{ marginTop: '24px' }}>
+        <div className="part-card part1" onClick={() => onSelectPart(1)} role="button" tabIndex={0}
+          onKeyDown={e => e.key === 'Enter' && onSelectPart(1)} aria-label="Start Part 1">
+          <span className="part-emoji">🔢</span>
+          <h2 style={{ color: 'var(--gold)' }}>Addition Within 20</h2>
+          <p>Ten-frames, number lines &amp; counting strategies</p>
+          <span className="part-badge" style={{ background: 'rgba(255,193,7,0.2)', color: 'var(--gold)' }}>Part 1 · 5 Worlds</span>
+          {saved?.part === 1 && saved?.stats && (
+            <div style={{ marginTop: '10px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+              ✅ Score: {saved.stats.score}% · ⭐ {saved.stats.totalStars}
+            </div>
+          )}
         </div>
 
-        <div style={{ marginTop: '48px', display: 'flex', gap: '32px', justifyContent: 'center', flexWrap: 'wrap' }}>
-          {[
-            { icon: '🌟', label: 'Wonder', desc: 'Get curious!' },
-            { icon: '📖', label: 'Story', desc: 'Learn through story' },
-            { icon: '🧪', label: 'Simulate', desc: 'Hands-on fun' },
-            { icon: '🎮', label: 'Play', desc: '50 questions' },
-            { icon: '🏆', label: 'Reflect', desc: 'Earn your badge' },
-          ].map(ph => (
-            <div key={ph.label} style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '2rem' }}>{ph.icon}</div>
-              <div style={{ fontWeight: 800, fontSize: '0.9rem', marginTop: '4px' }}>{ph.label}</div>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>{ph.desc}</div>
+        <div className="part-card part2" onClick={() => onSelectPart(2)} role="button" tabIndex={0}
+          onKeyDown={e => e.key === 'Enter' && onSelectPart(2)} aria-label="Start Part 2">
+          <span className="part-emoji">💯</span>
+          <h2 style={{ color: 'var(--gold)' }}>Addition Within 100</h2>
+          <p>Place value blocks &amp; regrouping mastery</p>
+          <span className="part-badge" style={{ background: 'rgba(255,193,7,0.2)', color: 'var(--gold)' }}>Part 2 · 5 Worlds</span>
+          {saved?.part === 2 && saved?.stats && (
+            <div style={{ marginTop: '10px', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+              ✅ Score: {saved.stats.score}% · ⭐ {saved.stats.totalStars}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Journey Map */}
+      <div className="intro-journey-map">
+        <h3 className="intro-journey-title">Your Learning Journey</h3>
+        <div className="intro-journey-steps">
+          {JOURNEY.map((step, i) => (
+            <div key={step.label} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ fontSize: '1.4rem', width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {step.icon}
+                </div>
+                <div style={{ textAlign: 'left' }}>
+                  <div style={{ fontFamily: 'var(--font-heading)', fontSize: '0.8rem', fontWeight: 600 }}>{step.label}</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{step.desc}</div>
+                </div>
+              </div>
+              {i < JOURNEY.length - 1 && (
+                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 4px' }}>→</span>
+              )}
             </div>
           ))}
         </div>
