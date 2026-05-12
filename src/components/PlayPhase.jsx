@@ -1,6 +1,6 @@
-import { useState, useCallback } from 'react'
-import { generatePart1Questions, generatePart2Questions, getHint } from '../data/questions'
-import { playSound } from '../utils/audio'
+import { useState, useEffect, useCallback } from 'react'
+import { generateGroupedQuestions, getHint } from '../data/questions'
+import { playSound, speakText, stopSpeech } from '../utils/audio'
 
 const WORLDS_P1 = [
   { id: 'w1', icon: '🔢', name: 'Number Basics', desc: '1-digit + 1-digit', color: '#6366f1' },
@@ -39,10 +39,9 @@ function Confetti() {
 
 export default function PlayPhase({ part, onComplete, audioEnabled }) {
   const worlds = part === 1 ? WORLDS_P1 : WORLDS_P2
-  const [allQuestions] = useState(() => {
-    const qs = part === 1 ? generatePart1Questions(Date.now()) : generatePart2Questions(Date.now())
-    return qs.slice(0, 50)
-  })
+
+  // Generate all questions grouped by world: 5 arrays of 10
+  const [worldQuestions] = useState(() => generateGroupedQuestions(part, Date.now()))
 
   const [currentWorld, setCurrentWorld] = useState(0)
   const [worldResults, setWorldResults] = useState(Array(5).fill(null))
@@ -62,8 +61,22 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
   const [done, setDone] = useState(false)
   const [val, setVal] = useState('')
 
-  const worldQs = allQuestions.slice(currentWorld * 10, currentWorld * 10 + 10)
+  // Current question from the current world's group
+  const worldQs = worldQuestions[currentWorld] || []
   const q = worldQs[qIndex]
+
+  // Speak question text when question changes
+  useEffect(() => {
+    if (!playing || !q) return
+    const textToSpeak = q.context
+      ? `${q.context.replace(/[^\w\s]/g, '')}. ${q.text}`
+      : q.text.replace(/_+/g, 'blank')
+    const timer = setTimeout(() => speakText(textToSpeak, audioEnabled), 400)
+    return () => { clearTimeout(timer); stopSpeech() }
+  }, [qIndex, currentWorld, playing, audioEnabled])
+
+  // Stop speech on unmount
+  useEffect(() => () => stopSpeech(), [])
 
   function startWorld(idx) {
     if (idx > 0 && !worldResults[idx - 1]) return
@@ -74,6 +87,7 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
     setWorldScore(0)
     setWorldStars(0)
     playSound('click', audioEnabled)
+    speakText(`Welcome to ${worlds[idx].name}! Let's go!`, audioEnabled)
   }
 
   function resetQ() {
@@ -101,15 +115,18 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
       setWorldScore(s => s + 1)
       setWorldStars(s => s + stars)
       playSound('correct', audioEnabled)
-      setTimeout(() => setShowFeedback(true), 300)
+      speakText('Correct! Well done!', audioEnabled)
+      setTimeout(() => setShowFeedback(true), 400)
     } else {
       setIsCorrect(false)
       if (att >= 2) {
         setAnswered(true)
         playSound('wrong', audioEnabled)
-        setTimeout(() => setShowFeedback(true), 300)
+        speakText(`The answer is ${q.answer}. Let's try the next one!`, audioEnabled)
+        setTimeout(() => setShowFeedback(true), 400)
       } else {
         playSound('wrong', audioEnabled)
+        speakText('Not quite. Try again!', audioEnabled)
       }
     }
   }
@@ -122,14 +139,22 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
   function nextQuestion() {
     setShowFeedback(false)
     if (qIndex + 1 >= 10) {
-      const stars = Math.min(3, Math.round((worldScore / 10) * 3))
-      const res = { score: worldScore, stars: worldStars, starsEarned: stars }
+      // World finished — calculate results
+      const finalScore = worldScore + (isCorrect && !showFeedback ? 0 : 0) // worldScore is already updated
+      const starsEarned = Math.min(3, Math.round((worldScore / 10) * 3))
+      const res = { score: worldScore, stars: worldStars, starsEarned }
       const newResults = [...worldResults]
       newResults[currentWorld] = res
       setWorldResults(newResults)
       setShowWorldComplete(true)
-      if (stars >= 2) { setShowConfetti(true); playSound('worldComplete', audioEnabled) }
-      else playSound('star', audioEnabled)
+      if (starsEarned >= 2) {
+        setShowConfetti(true)
+        playSound('worldComplete', audioEnabled)
+        speakText(`Amazing! You completed ${worlds[currentWorld].name}!`, audioEnabled)
+      } else {
+        playSound('star', audioEnabled)
+        speakText(`Good try in ${worlds[currentWorld].name}! Keep practising!`, audioEnabled)
+      }
     } else {
       setQIndex(i => i + 1)
       resetQ()
@@ -141,30 +166,30 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
     setShowConfetti(false)
     setPlaying(false)
     if (currentWorld >= 4) {
-      const totalScore = worldResults.filter(Boolean).reduce((s, r) => s + r.score, 0) + worldResults[currentWorld]?.score
-      const totalStars = worldResults.filter(Boolean).reduce((s, r) => s + r.worldStars, 0)
       setDone(true)
     }
   }
 
   function finishAll() {
-    const totalCorrect = worldResults.filter(Boolean).reduce((s, r) => s + r.score, 0)
-    const totalStars = worldResults.filter(Boolean).reduce((s, r) => s + r.stars, 0)
+    const results = worldResults.filter(Boolean)
+    const totalCorrect = results.reduce((s, r) => s + r.score, 0)
+    const totalStars = results.reduce((s, r) => s + r.stars, 0)
     const score = Math.round((totalCorrect / 50) * 100)
+    speakText(`Congratulations! You scored ${score} percent!`, audioEnabled)
     onComplete({ score, totalCorrect, totalStars, totalQuestions: 50, worlds: worldResults })
   }
 
-  // World Complete overlay
+  // ─── World Complete overlay ───
   if (showWorldComplete) {
     const res = worldResults[currentWorld]
-    const starCount = Math.min(3, Math.round((res?.score || 0) / 10 * 3))
+    const starCount = res?.starsEarned || Math.min(3, Math.round((res?.score || 0) / 10 * 3))
     return (
       <div style={{ width: '100%', maxWidth: '900px' }}>
         {showConfetti && <Confetti />}
         <div className="world-complete-card">
           <div style={{ fontSize: '3rem', marginBottom: '12px' }}>{worlds[currentWorld].icon}</div>
           <h2 style={{ fontFamily: 'var(--font-heading)', fontSize: '1.6rem', marginBottom: '8px' }}>
-            {starCount >= 2 ? 'World Complete!' : 'Keep Practising!'}
+            {starCount >= 2 ? '🎉 World Complete!' : '💪 Keep Practising!'}
           </h2>
           <div style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', color: 'var(--gold)', margin: '12px 0' }}>
             {res?.score}/10 Correct
@@ -176,7 +201,7 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
             {currentWorld < 4 ? (
               <button className="btn btn-primary" onClick={finishWorld}>Next World →</button>
             ) : (
-              <button className="btn btn-primary" onClick={() => { finishWorld(); setTimeout(finishAll, 100) }}>See Results 🏆</button>
+              <button className="btn btn-primary" onClick={() => { finishWorld(); setTimeout(finishAll, 200) }}>See Results 🏆</button>
             )}
           </div>
         </div>
@@ -184,7 +209,7 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
     )
   }
 
-  // World Map view
+  // ─── World Map view ───
   if (!playing && !done) {
     return (
       <div style={{ width: '100%', maxWidth: '900px' }}>
@@ -202,7 +227,7 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
             const unlocked = i === 0 || worldResults[i - 1]
             const completed = !!worldResults[i]
             const res = worldResults[i]
-            const starCount = res ? Math.min(3, Math.round(res.score / 10 * 3)) : 0
+            const starCount = res ? res.starsEarned : 0
             return (
               <div key={w.id}>
                 <div
@@ -237,7 +262,7 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
     )
   }
 
-  // Done — all worlds complete
+  // ─── Done — all worlds complete ───
   if (done) {
     return (
       <div style={{ width: '100%', maxWidth: '900px', textAlign: 'center' }}>
@@ -248,9 +273,11 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
     )
   }
 
-  // Question view
+  // ─── Question view ───
   if (!q) return null
   const isFill = q.type === 'fill'
+  const isMissing = q.type === 'missing'
+  const isWord = q.type === 'word'
 
   return (
     <div style={{ width: '100%', maxWidth: '700px' }}>
@@ -269,7 +296,7 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
       </div>
 
       {/* Question card */}
-      <div className="question-card">
+      <div className="question-card" key={`${currentWorld}-${qIndex}`}>
         <div style={{ fontSize: '0.75rem', color: 'var(--gold)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '16px' }}>
           {worlds[currentWorld].icon} {worlds[currentWorld].name}
         </div>
@@ -278,7 +305,7 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
 
         <p style={{ fontFamily: 'var(--font-heading)', fontSize: '1.3rem', fontWeight: 500, lineHeight: 1.6, margin: '16px 0 24px' }}>{q.text}</p>
 
-        {/* MCQ */}
+        {/* MCQ options (for mcq, missing, word types) */}
         {!isFill && q.options && (
           <div className="options-grid">
             {q.options.map((opt, i) => {
@@ -309,6 +336,7 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
                 onKeyDown={e => e.key === 'Enter' && !answered && handleFillSubmit()}
                 aria-label="Enter your answer" min="0" max="200"
                 style={{ width: '80px', height: '80px', fontSize: '2rem' }}
+                autoFocus
               />
             </div>
             {!answered && (
@@ -320,7 +348,7 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
         {/* Hint */}
         {!answered && (
           <div style={{ marginTop: '16px' }}>
-            <button className="btn btn-outline btn-sm" onClick={() => { setHintsUsed(h => h + 1); setShowHint(true) }}
+            <button className="btn btn-outline btn-sm" onClick={() => { setHintsUsed(h => h + 1); setShowHint(true); speakText(getHint(q), audioEnabled) }}
               disabled={showHint} style={{ fontSize: '0.85rem' }}>
               💡 {showHint ? 'Hint shown' : 'Use Hint (-1⭐)'}
             </button>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { speakText } from '../utils/audio'
 
 function Confetti() {
   const pieces = Array.from({ length: 60 }, (_, i) => ({
@@ -26,17 +27,32 @@ function Confetti() {
   )
 }
 
-export default function ReflectPhase({ part, partProgress, totalStars, onGoHome, onNextPart }) {
+export default function ReflectPhase({ part, stats, onRestart, onGoHome, onNextPart, audioEnabled }) {
   const [showConfetti, setShowConfetti] = useState(true)
-  const result = partProgress[part]
 
-  const score = result?.score ?? 0
-  const stars = result?.stars ?? 0
+  // Use stats object from PlayPhase → App
+  const score = stats?.score ?? 0
+  const totalCorrect = stats?.totalCorrect ?? 0
+  const totalStars = stats?.totalStars ?? 0
+  const totalQuestions = stats?.totalQuestions ?? 50
 
   useEffect(() => {
     const t = setTimeout(() => setShowConfetti(false), 4000)
     return () => clearTimeout(t)
   }, [])
+
+  // Speak the result on mount
+  useEffect(() => {
+    const msg = score >= 90
+      ? `Amazing! You scored ${score} percent! You are an Addition Champion!`
+      : score >= 75
+      ? `Great job! You scored ${score} percent! You are a Super Adder!`
+      : score >= 60
+      ? `Good effort! You scored ${score} percent! Keep going!`
+      : `You scored ${score} percent. Don't worry, practice makes perfect!`
+    const timer = setTimeout(() => speakText(msg, audioEnabled), 600)
+    return () => clearTimeout(timer)
+  }, [score, audioEnabled])
 
   const badge = score >= 90
     ? { emoji: '🏆', label: 'Addition Champion!', color: '#ffd700', bg: 'rgba(255,215,0,0.15)' }
@@ -49,6 +65,9 @@ export default function ReflectPhase({ part, partProgress, totalStars, onGoHome,
   const masteryItems = part === 1
     ? ['1-digit + 1-digit', '1-digit + 2-digit', 'Missing Addend', 'Word Problems']
     : ['Without Regrouping (2+1)', 'Without Regrouping (2+2)', 'With Regrouping', 'Missing Addend', 'Word Problems']
+
+  // Calculate per-world scores if available
+  const worldData = stats?.worlds || []
 
   return (
     <div className="reflect-hero">
@@ -69,12 +88,12 @@ export default function ReflectPhase({ part, partProgress, totalStars, onGoHome,
           <div className="stat-label">Score</div>
         </div>
         <div className="stat-card">
-          <div className="stat-val" style={{ color: 'var(--yellow)' }}>⭐ {stars}</div>
+          <div className="stat-val" style={{ color: 'var(--yellow)' }}>⭐ {totalStars}</div>
           <div className="stat-label">Stars Earned</div>
         </div>
         <div className="stat-card">
-          <div className="stat-val" style={{ color: 'var(--sky)' }}>{totalStars}</div>
-          <div className="stat-label">Total Stars</div>
+          <div className="stat-val" style={{ color: 'var(--sky)' }}>{totalCorrect}/{totalQuestions}</div>
+          <div className="stat-label">Correct</div>
         </div>
       </div>
 
@@ -85,12 +104,14 @@ export default function ReflectPhase({ part, partProgress, totalStars, onGoHome,
         </h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {masteryItems.map((item, i) => {
-            const pct = Math.min(100, Math.max(30, score - i * 5 + Math.random() * 20))
+            // Use actual world data if available, otherwise estimate
+            const worldRes = worldData[i]
+            const pct = worldRes ? Math.round((worldRes.score / 10) * 100) : Math.min(100, Math.max(20, score - i * 5))
             return (
               <div key={item}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: '4px' }}>
                   <span style={{ color: 'rgba(255,255,255,0.8)' }}>{item}</span>
-                  <span style={{ color: 'var(--yellow)', fontWeight: 700 }}>{Math.round(pct)}%</span>
+                  <span style={{ color: 'var(--yellow)', fontWeight: 700 }}>{pct}%</span>
                 </div>
                 <div className="progress-bar-wrap">
                   <div className="progress-bar-fill" style={{ width: `${pct}%`, transition: 'width 1s ease' }} />
@@ -118,7 +139,12 @@ export default function ReflectPhase({ part, partProgress, totalStars, onGoHome,
         <button className="btn btn-ghost" onClick={onGoHome} id="reflect-home-btn">
           🏠 Home
         </button>
-        {part === 1 && (
+        {onRestart && (
+          <button className="btn btn-outline" onClick={onRestart} id="reflect-retry-btn">
+            🔄 Try Again
+          </button>
+        )}
+        {part === 1 && onNextPart && (
           <button className="btn btn-sky" onClick={onNextPart} id="reflect-part2-btn">
             Go to Part 2 →
           </button>

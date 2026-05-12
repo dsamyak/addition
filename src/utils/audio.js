@@ -98,3 +98,77 @@ export function playSound(key, enabled = true) {
     SOUNDS[key]();
   } catch (e) { /* silent fail */ }
 }
+
+// ─── Female Voice TTS (Web Speech API) ──────────────────────────
+let femaleVoice = null;
+let voiceReady = false;
+
+function initVoices() {
+  if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
+  const pickVoice = () => {
+    const voices = speechSynthesis.getVoices();
+    if (!voices.length) return;
+
+    // Priority list for female English voices
+    const tests = [
+      v => /google uk english female/i.test(v.name),
+      v => /google us english/i.test(v.name),
+      v => /samantha/i.test(v.name),
+      v => /zira/i.test(v.name),
+      v => /female/i.test(v.name) && v.lang.startsWith('en'),
+      v => /fiona/i.test(v.name),
+      v => /karen/i.test(v.name),
+      v => /moira/i.test(v.name),
+      v => /tessa/i.test(v.name),
+      v => v.lang.startsWith('en') && /female/i.test(v.name),
+      v => v.lang.startsWith('en-'),
+      v => v.lang.startsWith('en'),
+    ];
+
+    for (const test of tests) {
+      const found = voices.find(test);
+      if (found) { femaleVoice = found; voiceReady = true; return; }
+    }
+    femaleVoice = voices[0];
+    voiceReady = true;
+  };
+
+  pickVoice();
+  if (!voiceReady) {
+    speechSynthesis.onvoiceschanged = pickVoice;
+  }
+}
+
+// Auto-init
+initVoices();
+
+/**
+ * Speak text aloud using a female voice.
+ * Rate is slowed for young learners.
+ */
+export function speakText(text, enabled = true) {
+  if (!enabled || !text || typeof speechSynthesis === 'undefined') return;
+
+  // Cancel any ongoing speech first
+  speechSynthesis.cancel();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = 0.88;   // Slower for children
+  utterance.pitch = 1.15;  // Slightly higher for friendlier tone
+  utterance.volume = 0.92;
+
+  if (femaleVoice) utterance.voice = femaleVoice;
+
+  // Chrome sometimes pauses long utterances; work around it
+  utterance.onpause = () => speechSynthesis.resume();
+
+  speechSynthesis.speak(utterance);
+}
+
+/** Stop any ongoing speech */
+export function stopSpeech() {
+  if (typeof speechSynthesis !== 'undefined') {
+    speechSynthesis.cancel();
+  }
+}
