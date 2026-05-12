@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { STORY_PART1, STORY_PART2 } from '../data/storyContent'
-import { playSound } from '../utils/audio'
+import { playSound, speakText, stopSpeech } from '../utils/audio'
 
 export default function StoryPhase({ part, onNext, onBack, audioEnabled }) {
   const slides = part === 1 ? STORY_PART1 : STORY_PART2
@@ -8,6 +8,14 @@ export default function StoryPhase({ part, onNext, onBack, audioEnabled }) {
   const slide = slides[current]
   const isLast = current === slides.length - 1
   const progress = ((current + 1) / slides.length) * 100
+
+  // Speak the story slide text aloud
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      speakText(slide.text, audioEnabled)
+    }, 500)
+    return () => { clearTimeout(timer); stopSpeech() }
+  }, [current, audioEnabled])
 
   function highlightText(text, word) {
     if (!word) return text
