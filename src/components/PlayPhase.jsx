@@ -17,6 +17,8 @@ const WORLDS_P2 = [
   { id: 'w5', icon: '📖', name: 'Story Town', desc: 'Word problems', color: '#4ecdc4' },
 ]
 
+const QUESTIONS_PER_WORLD = 10
+
 function Confetti() {
   const pieces = Array.from({ length: 50 }, (_, i) => ({
     id: i, left: Math.random() * 100,
@@ -61,9 +63,18 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
   const [done, setDone] = useState(false)
   const [val, setVal] = useState('')
 
+  // Refs to track latest score values (avoids stale closure issues)
+  const worldScoreRef = useRef(0)
+  const worldStarsRef = useRef(0)
+  const processingNext = useRef(false)
+
+  // Keep refs in sync with state
+  useEffect(() => { worldScoreRef.current = worldScore }, [worldScore])
+  useEffect(() => { worldStarsRef.current = worldStars }, [worldStars])
+
   // Current question from the current world's group
   const worldQs = worldQuestions[currentWorld] || []
-  const q = worldQs[qIndex]
+  const q = (qIndex >= 0 && qIndex < worldQs.length) ? worldQs[qIndex] : null
 
   // Speak question text when question changes
   useEffect(() => {
@@ -93,6 +104,9 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
     resetQ()
     setWorldScore(0)
     setWorldStars(0)
+    worldScoreRef.current = 0
+    worldStarsRef.current = 0
+    processingNext.current = false
     playSound('click', audioEnabled)
     speakText(`Welcome to ${worlds[idx].name}! Let's go!`, audioEnabled)
   }
@@ -121,6 +135,8 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
       setAnswered(true)
       setWorldScore(s => s + 1)
       setWorldStars(s => s + stars)
+      worldScoreRef.current += 1
+      worldStarsRef.current += stars
       playSound('correct', audioEnabled)
       speakText('Correct! Well done!', audioEnabled)
       setTimeout(() => setShowFeedback(true), 400)
@@ -143,13 +159,22 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
     handleAnswer(parseInt(val), null)
   }
 
-  function nextQuestion() {
+  function nextQuestion(e) {
+    // Stop event propagation to prevent double-firing from overlay + button
+    if (e) e.stopPropagation()
+
+    // Guard against double-calls
+    if (processingNext.current) return
+    processingNext.current = true
+
     setShowFeedback(false)
-    if (qIndex + 1 >= 10) {
-      // World finished — calculate results
-      const finalScore = worldScore + (isCorrect && !showFeedback ? 0 : 0) // worldScore is already updated
-      const starsEarned = Math.min(3, Math.round((worldScore / 10) * 3))
-      const res = { score: worldScore, stars: worldStars, starsEarned }
+
+    if (qIndex + 1 >= QUESTIONS_PER_WORLD) {
+      // World finished — use refs for latest score values
+      const score = worldScoreRef.current
+      const stars = worldStarsRef.current
+      const starsEarned = Math.min(3, Math.round((score / QUESTIONS_PER_WORLD) * 3))
+      const res = { score, stars, starsEarned }
       const newResults = [...worldResults]
       newResults[currentWorld] = res
       setWorldResults(newResults)
@@ -163,15 +188,19 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
         speakText(`Good try in ${worlds[currentWorld].name}! Keep practising!`, audioEnabled)
       }
     } else {
-      setQIndex(i => i + 1)
+      setQIndex(i => Math.min(i + 1, QUESTIONS_PER_WORLD - 1))
       resetQ()
     }
+
+    // Release the processing guard after state updates are committed
+    setTimeout(() => { processingNext.current = false }, 100)
   }
 
   function finishWorld() {
     setShowWorldComplete(false)
     setShowConfetti(false)
     setPlaying(false)
+    processingNext.current = false
     if (currentWorld >= 4) {
       setDone(true)
     }
@@ -199,7 +228,7 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
             {starCount >= 2 ? '🎉 World Complete!' : '💪 Keep Practising!'}
           </h2>
           <div style={{ fontFamily: 'var(--font-heading)', fontSize: '2rem', color: 'var(--gold)', margin: '12px 0' }}>
-            {res?.score}/10 Correct
+            {res?.score}/{QUESTIONS_PER_WORLD} Correct
           </div>
           <div className="world-complete-stars">
             {[0,1,2].map(i => <span key={i} className={`world-star ${i < starCount ? 'earned' : ''}`}>⭐</span>)}
@@ -249,7 +278,7 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
                     {completed && (
                       <div className="world-stars">
                         {[0,1,2].map(j => <span key={j} style={{ opacity: j < starCount ? 1 : 0.2 }}>⭐</span>)}
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '8px' }}>{res.score}/10</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '8px' }}>{res.score}/{QUESTIONS_PER_WORLD}</span>
                       </div>
                     )}
                   </div>
@@ -281,7 +310,12 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
   }
 
   // ─── Question view ───
-  if (!q) return null
+  // Safety: if q is somehow null (shouldn't happen), go back to world map
+  if (!q) {
+    setPlaying(false)
+    return null
+  }
+
   const isFill = q.type === 'fill'
   const isMissing = q.type === 'missing'
   const isWord = q.type === 'word'
@@ -290,7 +324,7 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
     <div style={{ width: '100%', maxWidth: '700px' }}>
       {/* HUD */}
       <div className="hud">
-        <div className="hud-item">❓ {qIndex + 1}/10</div>
+        <div className="hud-item">❓ {qIndex + 1}/{QUESTIONS_PER_WORLD}</div>
         <div className="hud-item" style={{ color: 'var(--gold)' }}>⭐ {worldStars}</div>
         <div className="hud-item">✅ {worldScore}</div>
       </div>
@@ -298,7 +332,7 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
       {/* Progress */}
       <div style={{ marginBottom: '16px' }}>
         <div style={{ height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '9999px', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${((qIndex + 1) / 10) * 100}%`, background: 'linear-gradient(90deg, var(--purple-light), var(--gold))', borderRadius: '9999px', transition: 'width 0.5s ease' }} />
+          <div style={{ height: '100%', width: `${((qIndex + 1) / QUESTIONS_PER_WORLD) * 100}%`, background: 'linear-gradient(90deg, var(--purple-light), var(--gold))', borderRadius: '9999px', transition: 'width 0.5s ease' }} />
         </div>
       </div>
 
@@ -375,9 +409,9 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
         )}
       </div>
 
-      {/* Feedback overlay */}
+      {/* Feedback overlay — onClick is ONLY on the button, not the backdrop */}
       {showFeedback && (
-        <div className="feedback-overlay" onClick={nextQuestion}>
+        <div className="feedback-overlay">
           <div className={`feedback-content ${isCorrect ? 'correct' : 'wrong'}`}>
             <div className="feedback-emoji">{isCorrect ? '🎉' : '😔'}</div>
             <div className="feedback-message">{isCorrect ? 'Correct!' : 'Not this time'}</div>
@@ -386,7 +420,7 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
             </div>
             <button className="btn btn-sm" onClick={nextQuestion}
               style={{ marginTop: '16px', background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none' }}>
-              {qIndex + 1 >= 10 ? 'See World Score' : 'Next →'}
+              {qIndex + 1 >= QUESTIONS_PER_WORLD ? 'See World Score' : 'Next →'}
             </button>
           </div>
         </div>
