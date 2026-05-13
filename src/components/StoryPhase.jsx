@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { STORY_PART1, STORY_PART2 } from '../data/storyContent'
-import { playSound, speakText, stopSpeech } from '../utils/audio'
+import { playSound, speakText, speakPhaseIntro, stopSpeech } from '../utils/audio'
 
 export default function StoryPhase({ part, onNext, onBack, audioEnabled }) {
   const slides = part === 1 ? STORY_PART1 : STORY_PART2
@@ -8,9 +8,20 @@ export default function StoryPhase({ part, onNext, onBack, audioEnabled }) {
   const slide = slides[current]
   const isLast = current === slides.length - 1
   const progress = ((current + 1) / slides.length) * 100
+  const firstMount = useRef(true)
 
-  // Speak the story slide text aloud
+  // Speak the phase intro on first mount, then read each slide
   useEffect(() => {
+    if (firstMount.current) {
+      firstMount.current = false
+      speakPhaseIntro('story', part, audioEnabled)
+      // After intro finishes (~4s), read first slide
+      const introTimer = setTimeout(() => {
+        speakText(slide.text, audioEnabled)
+      }, 4500)
+      return () => { clearTimeout(introTimer); stopSpeech() }
+    }
+    // For subsequent slides, just read the text
     const timer = setTimeout(() => {
       speakText(slide.text, audioEnabled)
     }, 500)

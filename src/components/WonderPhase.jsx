@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { playSound, speakText, stopSpeech } from '../utils/audio'
+import { playSound, speakText, speakPhaseIntro, stopSpeech } from '../utils/audio'
 
 const CONTENT = {
   1: {
@@ -33,14 +33,18 @@ export default function WonderPhase({ part, onNext, audioEnabled }) {
   const [showBtn, setShowBtn] = useState(false)
 
   useEffect(() => {
+    // Speak the phase intro narration first
+    speakPhaseIntro('wonder', part, audioEnabled)
+
     const t1 = setTimeout(() => { setRevealed(true); playSound('pop', audioEnabled) }, 400)
     const t2 = setTimeout(() => {
       setShowCard(true)
+      // After the intro has had time to play, read the question
       speakText(c.question, audioEnabled)
-    }, 900)
-    const t3 = setTimeout(() => setShowBtn(true), 1400)
+    }, 5000)
+    const t3 = setTimeout(() => setShowBtn(true), 5500)
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); stopSpeech() }
-  }, [audioEnabled])
+  }, [audioEnabled, part])
 
   return (
     <div className="wonder-phase">

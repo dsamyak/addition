@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { generateGroupedQuestions, getHint } from '../data/questions'
-import { playSound, speakText, stopSpeech } from '../utils/audio'
+import { playSound, speakText, speakPhaseIntro, stopSpeech } from '../utils/audio'
 
 const WORLDS_P1 = [
   { id: 'w1', icon: '🔢', name: 'Number Basics', desc: '1-digit + 1-digit', color: '#6366f1' },
@@ -75,8 +75,15 @@ export default function PlayPhase({ part, onComplete, audioEnabled }) {
     return () => { clearTimeout(timer); stopSpeech() }
   }, [qIndex, currentWorld, playing, audioEnabled])
 
-  // Stop speech on unmount
-  useEffect(() => () => stopSpeech(), [])
+  // Speak phase intro on first mount
+  const playIntroSpoken = useRef(false)
+  useEffect(() => {
+    if (!playIntroSpoken.current) {
+      playIntroSpoken.current = true
+      speakPhaseIntro('play', part, audioEnabled)
+    }
+    return () => stopSpeech()
+  }, [])
 
   function startWorld(idx) {
     if (idx > 0 && !worldResults[idx - 1]) return

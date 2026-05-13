@@ -99,9 +99,10 @@ export function playSound(key, enabled = true) {
   } catch (e) { /* silent fail */ }
 }
 
-// ─── Female Voice TTS (Web Speech API) ──────────────────────────
+// ─── Enhanced Female Voice TTS (Web Speech API) ──────────────────────────
 let femaleVoice = null;
 let voiceReady = false;
+let allVoices = [];
 
 function initVoices() {
   if (typeof window === 'undefined' || !window.speechSynthesis) return;
@@ -109,20 +110,40 @@ function initVoices() {
   const pickVoice = () => {
     const voices = speechSynthesis.getVoices();
     if (!voices.length) return;
+    allVoices = voices;
 
-    // Priority list for female English voices
+    // Priority list — natural/neural voices first, then standard female voices
+    // These are ranked by how natural and genuine they sound
     const tests = [
+      // Microsoft Edge Neural voices (most natural on Windows)
+      v => /microsoft.*aria.*online/i.test(v.name) && v.lang.startsWith('en'),
+      v => /microsoft.*jenny.*online/i.test(v.name) && v.lang.startsWith('en'),
+      v => /microsoft.*ana.*online/i.test(v.name) && v.lang.startsWith('en'),
+      v => /microsoft.*sara.*online/i.test(v.name) && v.lang.startsWith('en'),
+      v => /microsoft.*sonia.*online/i.test(v.name) && v.lang.startsWith('en'),
+      // Google Chrome natural voices
       v => /google uk english female/i.test(v.name),
-      v => /google us english/i.test(v.name),
+      v => /google us english/i.test(v.name) && !/male/i.test(v.name),
+      // macOS/iOS natural voices
+      v => /samantha.*premium/i.test(v.name),
+      v => /samantha.*enhanced/i.test(v.name),
       v => /samantha/i.test(v.name),
-      v => /zira/i.test(v.name),
-      v => /female/i.test(v.name) && v.lang.startsWith('en'),
-      v => /fiona/i.test(v.name),
-      v => /karen/i.test(v.name),
+      v => /karen.*premium/i.test(v.name),
+      v => /karen/i.test(v.name) && v.lang.startsWith('en'),
       v => /moira/i.test(v.name),
+      v => /fiona/i.test(v.name),
       v => /tessa/i.test(v.name),
-      v => v.lang.startsWith('en') && /female/i.test(v.name),
-      v => v.lang.startsWith('en-'),
+      // Windows standard voices
+      v => /zira/i.test(v.name),
+      v => /hazel/i.test(v.name),
+      v => /susan/i.test(v.name),
+      // Generic female English
+      v => /female/i.test(v.name) && v.lang.startsWith('en'),
+      // Microsoft online neural voices (any)
+      v => /online.*natural/i.test(v.name) && v.lang.startsWith('en'),
+      v => /online/i.test(v.name) && v.lang.startsWith('en') && !/male/i.test(v.name),
+      // Any English voice (fallback)
+      v => v.lang.startsWith('en-') && !/male/i.test(v.name),
       v => v.lang.startsWith('en'),
     ];
 
@@ -143,32 +164,147 @@ function initVoices() {
 // Auto-init
 initVoices();
 
+// ─── Speech Queue for sentence-by-sentence reading ──────────────────────
+let speechQueue = [];
+let isSpeaking = false;
+let currentUtterance = null;
+
+// Chrome bug workaround: keeps speech alive for long utterances
+let chromeKeepAlive = null;
+
+function startChromeWorkaround() {
+  stopChromeWorkaround();
+  chromeKeepAlive = setInterval(() => {
+    if (speechSynthesis.speaking && !speechSynthesis.paused) {
+      speechSynthesis.pause();
+      speechSynthesis.resume();
+    }
+  }, 10000);
+}
+
+function stopChromeWorkaround() {
+  if (chromeKeepAlive) {
+    clearInterval(chromeKeepAlive);
+    chromeKeepAlive = null;
+  }
+}
+
 /**
- * Speak text aloud using a female voice.
- * Rate is slowed for young learners.
+ * Split text into natural sentences for a more genuine reading rhythm.
+ * Each sentence is spoken with a slight pause between them.
+ */
+function splitIntoSentences(text) {
+  // Split on sentence endings but keep the punctuation
+  const parts = text.match(/[^.!?]+[.!?]+[\s)"]*/g) || [text];
+  return parts.map(s => s.trim()).filter(Boolean);
+}
+
+function speakNextInQueue() {
+  if (speechQueue.length === 0) {
+    isSpeaking = false;
+    stopChromeWorkaround();
+    return;
+  }
+
+  isSpeaking = true;
+  const { text, rate, pitch, volume } = speechQueue.shift();
+
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.rate = rate;
+  utterance.pitch = pitch;
+  utterance.volume = volume;
+
+  if (femaleVoice) utterance.voice = femaleVoice;
+
+  utterance.onend = () => {
+    currentUtterance = null;
+    // Small natural pause between sentences
+    setTimeout(speakNextInQueue, 120);
+  };
+
+  utterance.onerror = () => {
+    currentUtterance = null;
+    speakNextInQueue();
+  };
+
+  currentUtterance = utterance;
+  speechSynthesis.speak(utterance);
+}
+
+/**
+ * Speak text aloud using the best available female voice.
+ * Text is broken into sentences for natural pacing.
+ * Rate/pitch tuned for a warm, genuine, teacher-like delivery.
  */
 export function speakText(text, enabled = true) {
   if (!enabled || !text || typeof speechSynthesis === 'undefined') return;
 
   // Cancel any ongoing speech first
-  speechSynthesis.cancel();
+  stopSpeech();
 
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.88;   // Slower for children
-  utterance.pitch = 1.15;  // Slightly higher for friendlier tone
-  utterance.volume = 0.92;
+  const sentences = splitIntoSentences(text);
 
-  if (femaleVoice) utterance.voice = femaleVoice;
+  // Queue each sentence with natural voice settings
+  sentences.forEach((sentence, i) => {
+    speechQueue.push({
+      text: sentence,
+      rate: 0.92,     // Slightly slower than normal — warm, unhurried
+      pitch: 1.08,    // Very slightly higher for warmth, not cartoon-ish
+      volume: 0.95,   // Near full volume
+    });
+  });
 
-  // Chrome sometimes pauses long utterances; work around it
-  utterance.onpause = () => speechSynthesis.resume();
-
-  speechSynthesis.speak(utterance);
+  startChromeWorkaround();
+  speakNextInQueue();
 }
 
-/** Stop any ongoing speech */
+/** Stop any ongoing speech and clear the queue */
 export function stopSpeech() {
   if (typeof speechSynthesis !== 'undefined') {
     speechSynthesis.cancel();
   }
+  speechQueue = [];
+  isSpeaking = false;
+  currentUtterance = null;
+  stopChromeWorkaround();
+}
+
+// ─── Phase Narration Content ──────────────────────────────────────────────
+// Warm, encouraging intro narration for each phase
+
+const PHASE_NARRATIONS = {
+  wonder: {
+    1: "Welcome to the Wonder phase! Let's ask a big question together. Have you ever thought about how we can combine numbers? Let's find out!",
+    2: "Welcome back! This time, we're going to wonder about adding bigger numbers. What happens when the ones add up to more than nine? Let's explore!",
+  },
+  story: {
+    1: "It's story time! Let me tell you about Leo the Lion Cub and his wonderful adventure with addition. Listen carefully!",
+    2: "Time for another story! This time, meet Ella the Elephant. She's learning to add bigger numbers at the market. Let's follow along!",
+  },
+  simulate: {
+    1: "Now it's your turn to try! Use the number line and ten-frame to explore addition yourself. Go ahead, experiment and have fun!",
+    2: "Great job getting this far! Now try using the place value mat and column addition tools. You can change the numbers and see what happens!",
+  },
+  play: {
+    1: "It's game time! You'll travel through five exciting worlds and answer addition questions. Do your best and earn stars. You've got this!",
+    2: "Ready for a challenge? Five worlds of bigger addition problems await you. Remember what you've learned, and let's go!",
+  },
+  reflect: {
+    1: "Well done! Let's look at how you did. Every question you tried made you a better mathematician!",
+    2: "Amazing effort! Let's review your journey. You've learned so much about addition within one hundred!",
+  },
+};
+
+/**
+ * Speak a warm phase-intro narration when a phase begins.
+ * @param {string} phase — 'wonder' | 'story' | 'simulate' | 'play' | 'reflect'
+ * @param {number} part — 1 or 2
+ * @param {boolean} enabled — whether audio is enabled
+ */
+export function speakPhaseIntro(phase, part, enabled = true) {
+  if (!enabled || typeof speechSynthesis === 'undefined') return;
+  const narrations = PHASE_NARRATIONS[phase];
+  if (!narrations) return;
+  const text = narrations[part] || narrations[1];
+  speakText(text, enabled);
 }

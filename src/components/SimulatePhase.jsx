@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { speakPhaseIntro, stopSpeech } from '../utils/audio'
 
 // ── Number Line Simulation ──────────────────────────────────────────────────
 function NumberLineSim() {
@@ -299,11 +300,17 @@ function ColumnAddSim() {
 }
 
 // ── Main SimulatePhase ──────────────────────────────────────────────────────
-export default function SimulatePhase({ part, onNext, onBack }) {
+export default function SimulatePhase({ part, onNext, onBack, audioEnabled }) {
   const tabs = part === 1
     ? [{ id: 'nl', label: '📏 Number Line' }, { id: 'tf', label: '🔟 Ten Frame' }]
     : [{ id: 'pv', label: '📦 Place Value Mat' }, { id: 'col', label: '📐 Column Addition' }]
   const [activeTab, setActiveTab] = useState(tabs[0].id)
+
+  // Speak warm intro narration when phase starts
+  useEffect(() => {
+    speakPhaseIntro('simulate', part, audioEnabled)
+    return () => stopSpeech()
+  }, [part, audioEnabled])
 
   return (
     <div>

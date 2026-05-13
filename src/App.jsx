@@ -6,7 +6,7 @@ import SimulatePhase from './components/SimulatePhase'
 import PlayPhase from './components/PlayPhase'
 import ReflectPhase from './components/ReflectPhase'
 import FloatingNumbers from './components/FloatingNumbers'
-import { playSound } from './utils/audio'
+import { playSound, stopSpeech } from './utils/audio'
 
 const PHASES = [
   { id: 'wonder', label: 'Wonder', icon: '🔍', num: '01' },
@@ -39,12 +39,14 @@ export default function App() {
   const saved = loadProgress()
 
   const goHome = useCallback(() => {
+    stopSpeech()
     setPhase('landing')
     setPart(null)
     setPlayStats(null)
   }, [])
 
   function startPart(p) {
+    stopSpeech()
     setPart(p)
     setPhase('wonder')
     playSound('click', audioEnabled)
@@ -100,7 +102,7 @@ export default function App() {
         {phase === 'wonder' && (
           <div className="content-area">
             <div className="content-card" style={{ marginTop: '60px' }}>
-              <WonderPhase part={part} onNext={() => { setPhase('story'); playSound('click', audioEnabled) }} audioEnabled={audioEnabled} />
+              <WonderPhase part={part} onNext={() => { stopSpeech(); setPhase('story'); playSound('click', audioEnabled) }} audioEnabled={audioEnabled} />
             </div>
           </div>
         )}
@@ -108,7 +110,7 @@ export default function App() {
         {phase === 'story' && (
           <div className="content-area">
             <div className="content-card" style={{ marginTop: '60px', padding: 0, overflow: 'hidden' }}>
-              <StoryPhase part={part} onNext={() => { setPhase('simulate'); playSound('click', audioEnabled) }} onBack={() => setPhase('wonder')} audioEnabled={audioEnabled} />
+              <StoryPhase part={part} onNext={() => { stopSpeech(); setPhase('simulate'); playSound('click', audioEnabled) }} onBack={() => { stopSpeech(); setPhase('wonder') }} audioEnabled={audioEnabled} />
             </div>
           </div>
         )}
@@ -116,7 +118,7 @@ export default function App() {
         {phase === 'simulate' && (
           <div className="content-area">
             <div className="content-card" style={{ marginTop: '60px' }}>
-              <SimulatePhase part={part} onNext={() => { setPhase('play'); playSound('click', audioEnabled) }} onBack={() => setPhase('story')} audioEnabled={audioEnabled} />
+              <SimulatePhase part={part} onNext={() => { stopSpeech(); setPhase('play'); playSound('click', audioEnabled) }} onBack={() => { stopSpeech(); setPhase('story') }} audioEnabled={audioEnabled} />
             </div>
           </div>
         )}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { speakText } from '../utils/audio'
+import { speakText, speakPhaseIntro } from '../utils/audio'
 
 function Confetti() {
   const pieces = Array.from({ length: 60 }, (_, i) => ({
@@ -41,16 +41,17 @@ export default function ReflectPhase({ part, stats, onRestart, onGoHome, onNextP
     return () => clearTimeout(t)
   }, [])
 
-  // Speak the result on mount
+  // Speak warm phase intro, then the score result
   useEffect(() => {
+    speakPhaseIntro('reflect', part, audioEnabled)
     const msg = score >= 90
-      ? `Amazing! You scored ${score} percent! You are an Addition Champion!`
+      ? `You scored ${score} percent! You are an Addition Champion!`
       : score >= 75
-      ? `Great job! You scored ${score} percent! You are a Super Adder!`
+      ? `You scored ${score} percent! You are a Super Adder!`
       : score >= 60
-      ? `Good effort! You scored ${score} percent! Keep going!`
+      ? `You scored ${score} percent! Great effort, keep going!`
       : `You scored ${score} percent. Don't worry, practice makes perfect!`
-    const timer = setTimeout(() => speakText(msg, audioEnabled), 600)
+    const timer = setTimeout(() => speakText(msg, audioEnabled), 4000)
     return () => clearTimeout(timer)
   }, [score, audioEnabled])
 
